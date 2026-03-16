@@ -23,7 +23,7 @@ struct RenderMenuApp: App {
                 }
             }
             .task {
-                guard !hasInitialized else { return }
+                guard !hasInitialized || !appState.isLoggedIn else { return }
                 hasInitialized = true
                 await initialize()
             }
