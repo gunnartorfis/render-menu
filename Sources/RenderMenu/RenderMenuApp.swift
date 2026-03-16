@@ -12,23 +12,36 @@ struct RenderMenuApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            menuContent
-                .task {
-                    guard !hasInitialized else { return }
-                    hasInitialized = true
-                    appState.loadFromKeychain()
-                    if appState.isLoggedIn {
-                        await appState.login(apiKey: appState.apiKey)
-                        appState.startAutoRefresh()
-                    }
+            // Stable container — never changes identity, so .task is never cancelled
+            VStack(spacing: 0) {
+                if !appState.isLoggedIn {
+                    LoginView(state: appState)
+                } else if showSettings {
+                    settingsContent
+                } else {
+                    mainContent
                 }
-                .onAppear {
-                    appState.clearUnseen()
-                }
+            }
+            .task {
+                guard !hasInitialized else { return }
+                hasInitialized = true
+                await initialize()
+            }
+            .onAppear {
+                appState.clearUnseen()
+            }
         } label: {
             menuBarLabel
         }
         .menuBarExtraStyle(.window)
+    }
+
+    private func initialize() async {
+        appState.loadFromKeychain()
+        if appState.isLoggedIn {
+            await appState.login(apiKey: appState.apiKey, githubToken: appState.githubToken)
+            appState.startAutoRefresh()
+        }
     }
 
     private var menuBarLabel: some View {
@@ -38,17 +51,6 @@ struct RenderMenuApp: App {
                 Text("\(appState.unseenCount)")
                     .font(.caption2)
             }
-        }
-    }
-
-    @ViewBuilder
-    private var menuContent: some View {
-        if !appState.isLoggedIn {
-            LoginView(state: appState)
-        } else if showSettings {
-            settingsContent
-        } else {
-            mainContent
         }
     }
 
