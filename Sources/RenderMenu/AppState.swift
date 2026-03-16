@@ -122,42 +122,52 @@ final class AppState {
 
         do {
             let services = try await client.fetchServices(ownerId: owner.id)
-            let previews = services.filter(\.isPreview)
-            previewServices = previews.sorted { $0.updatedAt > $1.updatedAt }
-
-            // Fetch deploy statuses concurrently
-            await withTaskGroup(of: (String, ServiceStatus).self) { group in
-                for service in previews {
-                    group.addTask {
-                        if let deploy = try? await client.fetchLatestDeploy(serviceId: service.id) {
-                            return (service.id, deploy.deployStatus)
-                        }
-                        return (service.id, service.statusIndicator)
-                    }
-                }
-
-                var statuses: [String: ServiceStatus] = [:]
-                for await (id, status) in group {
-                    statuses[id] = status
-                }
-                deployStatuses = statuses
-            }
-
-            // Fetch GitHub PR info
-            await fetchPRInfo()
-
+            let previews = services.filter(\.isPreview).sorted { $0.updatedAt > $1.updatedAt }
+            previewServices = previews
+            isLoading = false
             lastUpdated = Date()
+
+            // Enrich with deploy statuses and PR info in parallel, updating UI incrementally
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask { @MainActor in
+                    await self.fetchDeployStatuses(previews: previews, client: client)
+                }
+                group.addTask { @MainActor in
+                    await self.fetchPRInfo()
+                }
+            }
         } catch {
             errorMessage = error.localizedDescription
+            isLoading = false
         }
+    }
 
-        isLoading = false
+    private func fetchDeployStatuses(previews: [Service], client: RenderAPIClient) async {
+        await withTaskGroup(of: (String, ServiceStatus).self) { group in
+            for service in previews {
+                group.addTask {
+                    if let deploy = try? await client.fetchLatestDeploy(serviceId: service.id) {
+                        return (service.id, deploy.deployStatus)
+                    }
+                    return (service.id, service.statusIndicator)
+                }
+            }
+
+            for await (id, status) in group {
+                deployStatuses[id] = status
+            }
+        }
     }
 
     private func fetchPRInfo() async {
         guard let gh = githubClient else { return }
-        let results = await gh.fetchPRs(for: previewServices)
-        prInfo = results
+        // Fetch individually so each title appears as it arrives
+        for service in previewServices {
+            guard let repo = service.gitHubRepo, let pr = service.prNumber else { continue }
+            if let result = try? await gh.fetchPR(repo: repo, number: pr) {
+                prInfo[service.id] = result
+            }
+        }
     }
 
     // MARK: - Auto Refresh
