@@ -1,29 +1,33 @@
 import Foundation
 import Security
 
-enum KeychainService {
-    private static let service = "com.rendermenu.apikey"
-    private static let account = "render-api-key"
+enum KeychainKey: String {
+    case renderAPIKey = "render-api-key"
+    case githubToken = "github-token"
+}
 
-    static func save(apiKey: String) -> Bool {
-        guard let data = apiKey.data(using: .utf8) else { return false }
-        delete()
+enum KeychainService {
+    private static let service = "com.rendermenu"
+
+    static func save(_ key: KeychainKey, value: String) -> Bool {
+        guard let data = value.data(using: .utf8) else { return false }
+        delete(key)
 
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
+            kSecAttrAccount as String: key.rawValue,
             kSecValueData as String: data,
         ]
 
         return SecItemAdd(query as CFDictionary, nil) == errSecSuccess
     }
 
-    static func load() -> String? {
+    static func load(_ key: KeychainKey) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
+            kSecAttrAccount as String: key.rawValue,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
         ]
@@ -36,12 +40,17 @@ enum KeychainService {
     }
 
     @discardableResult
-    static func delete() -> Bool {
+    static func delete(_ key: KeychainKey) -> Bool {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
+            kSecAttrAccount as String: key.rawValue,
         ]
         return SecItemDelete(query as CFDictionary) == errSecSuccess
+    }
+
+    static func deleteAll() {
+        delete(.renderAPIKey)
+        delete(.githubToken)
     }
 }

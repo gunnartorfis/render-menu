@@ -31,6 +31,7 @@ struct Service: Codable, Identifiable {
     let name: String
     let type: String
     let slug: String
+    let repo: String?
     let suspended: String?
     let suspenders: [String]?
     let ownerId: String
@@ -57,6 +58,23 @@ struct Service: Codable, Identifiable {
     var previewURL: URL? {
         guard let urlString = serviceDetails?.url else { return nil }
         return URL(string: urlString.hasPrefix("http") ? urlString : "https://\(urlString)")
+    }
+
+    /// Parses "owner/repo" from the GitHub repo URL
+    var gitHubRepo: String? {
+        guard let repo else { return nil }
+        // Handle https://github.com/owner/repo or git@github.com:owner/repo.git
+        if repo.contains("github.com") {
+            let cleaned = repo
+                .replacingOccurrences(of: "git@github.com:", with: "")
+                .replacingOccurrences(of: "https://github.com/", with: "")
+                .replacingOccurrences(of: ".git", with: "")
+            let parts = cleaned.split(separator: "/")
+            if parts.count >= 2 {
+                return "\(parts[0])/\(parts[1])"
+            }
+        }
+        return nil
     }
 
     var statusIndicator: ServiceStatus {
@@ -103,6 +121,19 @@ enum ServiceStatus {
         case .failed: "xmark.circle.fill"
         case .suspended: "pause.circle.fill"
         }
+    }
+}
+
+// MARK: - GitHub PR
+
+struct GitHubPR: Codable {
+    let number: Int
+    let title: String
+    let htmlUrl: String
+
+    enum CodingKeys: String, CodingKey {
+        case number, title
+        case htmlUrl = "html_url"
     }
 }
 

@@ -4,6 +4,7 @@ struct LoginView: View {
     let state: AppState
 
     @State private var apiKeyInput: String = ""
+    @State private var githubTokenInput: String = ""
 
     var body: some View {
         VStack(spacing: 12) {
@@ -14,13 +15,21 @@ struct LoginView: View {
             Text("Render Menu")
                 .font(.headline)
 
-            Text("Enter your Render API key")
-                .font(.callout)
-                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Render API Key")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                SecureField("rnd_...", text: $apiKeyInput)
+                    .textFieldStyle(.roundedBorder)
+            }
 
-            SecureField("rnd_...", text: $apiKeyInput)
-                .textFieldStyle(.roundedBorder)
-                .onSubmit { login() }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("GitHub Token (for PR titles)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                SecureField("ghp_...", text: $githubTokenInput)
+                    .textFieldStyle(.roundedBorder)
+            }
 
             if let error = state.errorMessage {
                 Text(error)
@@ -41,15 +50,19 @@ struct LoginView: View {
             .buttonStyle(.borderedProminent)
             .disabled(apiKeyInput.isEmpty || state.isLoading)
 
-            Link("Get API key from Render →",
-                 destination: URL(string: "https://dashboard.render.com/account/api-keys")!)
-                .font(.caption)
+            HStack(spacing: 12) {
+                Link("Render key",
+                     destination: URL(string: "https://dashboard.render.com/account/api-keys")!)
+                Link("GitHub token",
+                     destination: URL(string: "https://github.com/settings/tokens")!)
+            }
+            .font(.caption)
         }
         .padding(20)
         .frame(width: 280)
     }
 
     private func login() {
-        Task { await state.login(apiKey: apiKeyInput) }
+        Task { await state.login(apiKey: apiKeyInput, githubToken: githubTokenInput) }
     }
 }
