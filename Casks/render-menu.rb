@@ -1,6 +1,6 @@
 cask "render-menu" do
   version "0.1.0"
-  sha256 "" # Updated by release workflow
+  sha256 "b24716ec097fe72c8f2ef864544b484a9232b815bfc08d58e5d52b8bf3b40950"
 
   url "https://github.com/gunnartorfis/render-menu/releases/download/v#{version}/RenderMenu-#{version}.zip"
   name "Render Menu"
