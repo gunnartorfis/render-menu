@@ -1,4 +1,5 @@
 import Foundation
+import LocalAuthentication
 import Security
 
 enum KeychainKey: String {
@@ -13,23 +14,37 @@ enum KeychainService {
         guard let data = value.data(using: .utf8) else { return false }
         delete(key)
 
-        let query: [String: Any] = [
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: key.rawValue,
             kSecValueData as String: data,
         ]
 
+        // Protect with Touch ID (falls back to device passcode)
+        if let access = SecAccessControlCreateWithFlags(
+            nil,
+            kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+            .userPresence,
+            nil
+        ) {
+            query[kSecAttrAccessControl as String] = access
+        }
+
         return SecItemAdd(query as CFDictionary, nil) == errSecSuccess
     }
 
     static func load(_ key: KeychainKey) -> String? {
+        let context = LAContext()
+        context.localizedReason = "Access your API keys"
+
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: key.rawValue,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecUseAuthenticationContext as String: context,
         ]
 
         var result: AnyObject?
