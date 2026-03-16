@@ -4,26 +4,22 @@ import SwiftUI
 struct RenderMenuApp: App {
     @State private var appState = AppState()
     @State private var showSettings = false
+    @State private var hasInitialized = false
+
+    init() {
+        NSApplication.shared.setActivationPolicy(.accessory)
+    }
 
     var body: some Scene {
         MenuBarExtra {
             menuContent
-                .onAppear {
+                .task {
+                    guard !hasInitialized else { return }
+                    hasInitialized = true
                     appState.loadFromKeychain()
                     if appState.isLoggedIn {
-                        Task {
-                            let owners = try? await RenderAPIClient(apiKey: appState.apiKey).fetchOwners()
-                            if let owners {
-                                appState.owners = owners
-                                if let savedId = UserDefaults.standard.string(forKey: "selectedOwnerId"),
-                                   let owner = owners.first(where: { $0.id == savedId }) {
-                                    await appState.selectOwner(owner)
-                                } else if let first = owners.first {
-                                    await appState.selectOwner(first)
-                                }
-                            }
-                            appState.startAutoRefresh()
-                        }
+                        await appState.login(apiKey: appState.apiKey)
+                        appState.startAutoRefresh()
                     }
                 }
         } label: {
@@ -37,39 +33,45 @@ struct RenderMenuApp: App {
         if !appState.isLoggedIn {
             LoginView(state: appState)
         } else if showSettings {
-            VStack(spacing: 0) {
-                SettingsView(state: appState)
-                Divider()
-                HStack {
-                    Button("← Back") { showSettings = false }
-                        .buttonStyle(.borderless)
-                        .font(.caption)
-                    Spacer()
-                    quitButton
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-            }
+            settingsContent
         } else {
-            VStack(spacing: 0) {
-                PreviewListView(state: appState)
-                Divider()
-                HStack {
-                    Button {
-                        showSettings = true
-                    } label: {
-                        Image(systemName: "gear")
-                            .font(.caption)
-                    }
-                    .buttonStyle(.borderless)
+            mainContent
+        }
+    }
 
-                    Spacer()
-
-                    quitButton
+    private var mainContent: some View {
+        VStack(spacing: 0) {
+            PreviewListView(state: appState)
+            Divider()
+            HStack {
+                Button {
+                    showSettings = true
+                } label: {
+                    Image(systemName: "gear")
+                        .font(.caption)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
+                .buttonStyle(.borderless)
+                Spacer()
+                quitButton
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+        }
+    }
+
+    private var settingsContent: some View {
+        VStack(spacing: 0) {
+            SettingsView(state: appState)
+            Divider()
+            HStack {
+                Button("Back") { showSettings = false }
+                    .buttonStyle(.borderless)
+                    .font(.caption)
+                Spacer()
+                quitButton
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
         }
     }
 
