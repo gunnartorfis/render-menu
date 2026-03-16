@@ -40,7 +40,7 @@ struct Service: Codable, Identifiable {
     let parentServer: ParentServer?
 
     var isPreview: Bool {
-        name.range(of: #"PR #\d+"#, options: .regularExpression) != nil
+        name.range(of: #"PR #\d+"#, options: .regularExpression) != nil || parentServer != nil
     }
 
     var prNumber: Int? {
