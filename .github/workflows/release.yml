@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Build universal .app bundle
+        run: |
+          swift build -c release --arch arm64 --arch x86_64
+
+          APP_DIR=".build/app/Render Menu.app"
+          mkdir -p "${APP_DIR}/Contents/MacOS"
+          mkdir -p "${APP_DIR}/Contents/Resources"
+
+          cp ".build/apple/Products/Release/RenderMenu" "${APP_DIR}/Contents/MacOS/RenderMenu" 2>/dev/null \
+            || cp ".build/release/RenderMenu" "${APP_DIR}/Contents/MacOS/RenderMenu"
+
+          cp Sources/RenderMenu/Info.plist "${APP_DIR}/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${{ steps.version.outputs.version }}" "${APP_DIR}/Contents/Info.plist"
+
+          codesign --force --sign - "${APP_DIR}"
+
+          cd .build/app
+          zip -r "RenderMenu-${{ steps.version.outputs.version }}.zip" "Render Menu.app"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: .build/app/RenderMenu-${{ steps.version.outputs.version }}.zip
+          generate_release_notes: true
