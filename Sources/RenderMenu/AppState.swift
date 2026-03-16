@@ -33,10 +33,14 @@ final class AppState {
         guard showOnlyMine, hasGitHub, !githubUsername.isEmpty else {
             return previewServices
         }
+        // If no PR info loaded yet, show all (filter kicks in once data arrives)
+        if prInfo.isEmpty {
+            return previewServices
+        }
         return previewServices.filter { service in
             guard let pr = prInfo[service.id] else {
-                // PR info not loaded yet — hide until we know
-                return false
+                // PR info not fetched for this service (no repo/PR number) — show it
+                return true
             }
             return pr.user.login == githubUsername
         }
