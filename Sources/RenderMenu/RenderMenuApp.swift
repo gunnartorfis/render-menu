@@ -1,6 +1,7 @@
 import SwiftUI
 
 @main
+@MainActor
 struct RenderMenuApp: App {
     @State private var appState = AppState()
     @State private var showSettings = false
