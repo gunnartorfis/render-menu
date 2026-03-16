@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct PreviewListView: View {
     let state: AppState
 

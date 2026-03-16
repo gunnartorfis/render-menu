@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct SettingsView: View {
     let state: AppState
     @State private var githubTokenInput: String = ""
