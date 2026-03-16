@@ -1,6 +1,6 @@
 cask "render-menu" do
-  version "0.1.0"
-  sha256 "b24716ec097fe72c8f2ef864544b484a9232b815bfc08d58e5d52b8bf3b40950"
+  version "0.2.0"
+  sha256 "77532ec76a73b6fd5b32e732943ffda3b7ac30aa1eef0943512ecab7612b087a"
 
   url "https://github.com/gunnartorfis/render-menu/releases/download/v#{version}/RenderMenu-#{version}.zip"
   name "Render Menu"
