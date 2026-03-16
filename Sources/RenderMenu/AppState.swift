@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import UserNotifications
 
 @Observable
 @MainActor
@@ -14,7 +15,6 @@ final class AppState {
     var deployStatuses: [String: ServiceStatus] = [:]
     var prInfo: [String: GitHubPR] = [:]
     var showOnlyMine: Bool = true
-    var unseenCount: Int = 0
     var isLoading: Bool = false
     var errorMessage: String?
     var lastUpdated: Date?
@@ -191,7 +191,6 @@ final class AppState {
 
             for await (id, status) in group {
                 if let old = oldStatuses[id], old != .live, status == .live {
-                    unseenCount += 1
                     sendNotification(for: previews.first { $0.id == id })
                 }
                 deployStatuses[id] = status
@@ -199,14 +198,30 @@ final class AppState {
         }
     }
 
-    private func sendNotification(for service: Service?) {
-        // UNUserNotificationCenter requires a proper app bundle.
-        // For now, just increment the unseen badge count.
-        // TODO: Add NSUserNotification or migrate to .app bundle for push notifications.
+    private func isMine(_ service: Service) -> Bool {
+        guard hasGitHub, !githubUsername.isEmpty else { return true }
+        guard let pr = prInfo[service.id] else { return true }
+        return pr.user.login == githubUsername
     }
 
-    func clearUnseen() {
-        unseenCount = 0
+    private func sendNotification(for service: Service?) {
+        guard let service, isMine(service) else { return }
+        let content = UNMutableNotificationContent()
+        let title = prInfo[service.id]?.title ?? service.name
+        content.title = "Preview Live"
+        content.body = title
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: "deploy-\(service.id)-\(Date().timeIntervalSince1970)",
+            content: content,
+            trigger: nil
+        )
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    func requestNotificationPermission() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
     private func fetchPRInfo() async {
