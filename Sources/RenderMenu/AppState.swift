@@ -1,17 +1,21 @@
 import Foundation
 import SwiftUI
+import UserNotifications
 
 @Observable
 @MainActor
 final class AppState {
     var apiKey: String = ""
     var githubToken: String = ""
+    var githubUsername: String = ""
     var isLoggedIn: Bool = false
     var owners: [Owner] = []
     var selectedOwner: Owner?
     var previewServices: [Service] = []
     var deployStatuses: [String: ServiceStatus] = [:]
     var prInfo: [String: GitHubPR] = [:]
+    var showOnlyMine: Bool = true
+    var unseenCount: Int = 0
     var isLoading: Bool = false
     var errorMessage: String?
     var lastUpdated: Date?
@@ -24,6 +28,19 @@ final class AppState {
     private var refreshTimer: Timer?
 
     var hasGitHub: Bool { !githubToken.isEmpty }
+
+    var filteredServices: [Service] {
+        guard showOnlyMine, hasGitHub, !githubUsername.isEmpty else {
+            return previewServices
+        }
+        return previewServices.filter { service in
+            guard let pr = prInfo[service.id] else {
+                // PR info not loaded yet — hide until we know
+                return false
+            }
+            return pr.user.login == githubUsername
+        }
+    }
 
     // MARK: - Auth
 
@@ -62,6 +79,12 @@ final class AppState {
                 githubClient = GitHubAPIClient(token: trimmedGH)
             }
 
+            // Request notification permission
+            _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
+
+            // Fetch GitHub username
+            await resolveGitHubUser()
+
             if let saved = owners.first(where: { $0.id == savedOwnerId }) {
                 selectedOwner = saved
             } else {
@@ -85,14 +108,17 @@ final class AppState {
         _ = KeychainService.save(.githubToken, value: trimmed)
         githubToken = trimmed
         githubClient = GitHubAPIClient(token: trimmed)
-        // Re-fetch PR info with new token
-        Task { await fetchPRInfo() }
+        Task {
+            await resolveGitHubUser()
+            await fetchPRInfo()
+        }
     }
 
     func logout() {
         KeychainService.deleteAll()
         apiKey = ""
         githubToken = ""
+        githubUsername = ""
         isLoggedIn = false
         owners = []
         selectedOwner = nil
@@ -127,7 +153,7 @@ final class AppState {
             isLoading = false
             lastUpdated = Date()
 
-            // Enrich with deploy statuses and PR info in parallel, updating UI incrementally
+            // Enrich with deploy statuses and PR info in parallel
             await withTaskGroup(of: Void.self) { group in
                 group.addTask { @MainActor in
                     await self.fetchDeployStatuses(previews: previews, client: client)
@@ -142,7 +168,16 @@ final class AppState {
         }
     }
 
+    private func resolveGitHubUser() async {
+        guard let gh = githubClient else { return }
+        if let user = try? await gh.fetchCurrentUser() {
+            githubUsername = user.login
+        }
+    }
+
     private func fetchDeployStatuses(previews: [Service], client: RenderAPIClient) async {
+        let oldStatuses = deployStatuses
+
         await withTaskGroup(of: (String, ServiceStatus).self) { group in
             for service in previews {
                 group.addTask {
@@ -154,14 +189,37 @@ final class AppState {
             }
 
             for await (id, status) in group {
+                // Detect newly live deploys
+                if let old = oldStatuses[id], old != .live, status == .live {
+                    unseenCount += 1
+                    sendNotification(for: previews.first { $0.id == id })
+                }
                 deployStatuses[id] = status
             }
         }
     }
 
+    private func sendNotification(for service: Service?) {
+        guard let service else { return }
+        let content = UNMutableNotificationContent()
+        content.title = "Preview Ready"
+        content.body = prTitleFor(service) ?? service.name
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: "deploy-\(service.id)",
+            content: content,
+            trigger: nil
+        )
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    func clearUnseen() {
+        unseenCount = 0
+    }
+
     private func fetchPRInfo() async {
         guard let gh = githubClient else { return }
-        // Fetch individually so each title appears as it arrives
         for service in previewServices {
             guard let repo = service.gitHubRepo, let pr = service.prNumber else { continue }
             if let result = try? await gh.fetchPR(repo: repo, number: pr) {

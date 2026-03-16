@@ -126,13 +126,18 @@ enum ServiceStatus {
 
 // MARK: - GitHub PR
 
+struct GitHubUser: Codable {
+    let login: String
+}
+
 struct GitHubPR: Codable {
     let number: Int
     let title: String
     let htmlUrl: String
+    let user: GitHubUser
 
     enum CodingKeys: String, CodingKey {
-        case number, title
+        case number, title, user
         case htmlUrl = "html_url"
     }
 }

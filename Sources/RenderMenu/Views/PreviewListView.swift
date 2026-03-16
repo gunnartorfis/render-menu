@@ -11,10 +11,16 @@ struct PreviewListView: View {
                 Divider()
             }
 
+            // Filter toggle
+            if state.hasGitHub {
+                filterBar
+                Divider()
+            }
+
             // Content
             if state.isLoading && state.previewServices.isEmpty {
                 loadingView
-            } else if state.previewServices.isEmpty {
+            } else if state.filteredServices.isEmpty {
                 emptyView
             } else {
                 previewList
@@ -27,6 +33,33 @@ struct PreviewListView: View {
     }
 
     // MARK: - Subviews
+
+    private var filterBar: some View {
+        HStack(spacing: 6) {
+            filterButton(label: "Mine", active: state.showOnlyMine) {
+                state.showOnlyMine = true
+            }
+            filterButton(label: "All", active: !state.showOnlyMine) {
+                state.showOnlyMine = false
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+    }
+
+    private func filterButton(label: String, active: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.caption)
+                .fontWeight(active ? .semibold : .regular)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(active ? Color.accentColor.opacity(0.15) : Color.clear)
+                .cornerRadius(6)
+        }
+        .buttonStyle(.plain)
+    }
 
     private var workspaceSwitcher: some View {
         Menu {
@@ -61,14 +94,14 @@ struct PreviewListView: View {
     private var previewList: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
-                ForEach(state.previewServices) { service in
+                ForEach(state.filteredServices) { service in
                     PreviewRowView(
                         service: service,
                         status: state.statusFor(service),
                         prTitle: state.prTitleFor(service),
                         prURL: state.prURLFor(service)
                     )
-                    if service.id != state.previewServices.last?.id {
+                    if service.id != state.filteredServices.last?.id {
                         Divider().padding(.horizontal, 12)
                     }
                 }

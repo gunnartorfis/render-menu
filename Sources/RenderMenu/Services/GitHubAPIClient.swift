@@ -13,6 +13,19 @@ actor GitHubAPIClient {
         cache.removeAll()
     }
 
+    func fetchCurrentUser() async throws -> GitHubUser {
+        let url = URL(string: "https://api.github.com/user")!
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw APIError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0)
+        }
+        return try JSONDecoder().decode(GitHubUser.self, from: data)
+    }
+
     /// Fetch PR info. Cache key: "owner/repo#number"
     func fetchPR(repo: String, number: Int) async throws -> GitHubPR {
         let cacheKey = "\(repo)#\(number)"

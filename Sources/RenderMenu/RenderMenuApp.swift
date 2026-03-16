@@ -22,10 +22,23 @@ struct RenderMenuApp: App {
                         appState.startAutoRefresh()
                     }
                 }
+                .onAppear {
+                    appState.clearUnseen()
+                }
         } label: {
-            Label("Render", systemImage: "cloud.fill")
+            menuBarLabel
         }
         .menuBarExtraStyle(.window)
+    }
+
+    private var menuBarLabel: some View {
+        HStack(spacing: 2) {
+            Image(systemName: appState.unseenCount > 0 ? "cloud.fill" : "cloud")
+            if appState.unseenCount > 0 {
+                Text("\(appState.unseenCount)")
+                    .font(.caption2)
+            }
+        }
     }
 
     @ViewBuilder
