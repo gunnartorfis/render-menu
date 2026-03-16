@@ -47,8 +47,6 @@ struct PreviewListView: View {
                 previewList
             }
 
-            Divider()
-
             // Footer
             footerView
         }
