@@ -1,6 +1,5 @@
 import Foundation
 import SwiftUI
-import UserNotifications
 
 @Observable
 @MainActor
@@ -86,7 +85,6 @@ final class AppState {
 
             saveCredentials()
 
-            _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
             await resolveGitHubUser()
 
             if let saved = owners.first(where: { $0.id == savedOwnerId }) {
@@ -202,18 +200,9 @@ final class AppState {
     }
 
     private func sendNotification(for service: Service?) {
-        guard let service else { return }
-        let content = UNMutableNotificationContent()
-        content.title = "Preview Ready"
-        content.body = prTitleFor(service) ?? service.name
-        content.sound = .default
-
-        let request = UNNotificationRequest(
-            identifier: "deploy-\(service.id)",
-            content: content,
-            trigger: nil
-        )
-        UNUserNotificationCenter.current().add(request)
+        // UNUserNotificationCenter requires a proper app bundle.
+        // For now, just increment the unseen badge count.
+        // TODO: Add NSUserNotification or migrate to .app bundle for push notifications.
     }
 
     func clearUnseen() {
