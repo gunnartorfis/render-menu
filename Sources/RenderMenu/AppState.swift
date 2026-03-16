@@ -33,15 +33,11 @@ final class AppState {
         guard showOnlyMine, hasGitHub, !githubUsername.isEmpty else {
             return previewServices
         }
-        // If no PR info loaded yet, show all (filter kicks in once data arrives)
         if prInfo.isEmpty {
             return previewServices
         }
         return previewServices.filter { service in
-            guard let pr = prInfo[service.id] else {
-                // PR info not fetched for this service (no repo/PR number) — show it
-                return true
-            }
+            guard let pr = prInfo[service.id] else { return true }
             return pr.user.login == githubUsername
         }
     }
@@ -49,15 +45,23 @@ final class AppState {
     // MARK: - Auth
 
     func loadFromKeychain() {
-        if let key = KeychainService.load(.renderAPIKey), !key.isEmpty {
-            apiKey = key
+        guard let creds = KeychainService.load() else { return }
+        if !creds.renderAPIKey.isEmpty {
+            apiKey = creds.renderAPIKey
             isLoggedIn = true
-            apiClient = RenderAPIClient(apiKey: key)
+            apiClient = RenderAPIClient(apiKey: creds.renderAPIKey)
         }
-        if let token = KeychainService.load(.githubToken), !token.isEmpty {
-            githubToken = token
-            githubClient = GitHubAPIClient(token: token)
+        if !creds.githubToken.isEmpty {
+            githubToken = creds.githubToken
+            githubClient = GitHubAPIClient(token: creds.githubToken)
         }
+    }
+
+    private func saveCredentials() {
+        _ = KeychainService.save(StoredCredentials(
+            renderAPIKey: apiKey,
+            githubToken: githubToken
+        ))
     }
 
     func login(apiKey key: String, githubToken ghToken: String = "") async {
@@ -70,23 +74,19 @@ final class AppState {
 
         do {
             let fetchedOwners = try await apiClient!.fetchOwners()
-            _ = KeychainService.save(.renderAPIKey, value: trimmedKey)
             apiKey = trimmedKey
             isLoggedIn = true
             owners = fetchedOwners
 
-            // Save GitHub token if provided
             let trimmedGH = ghToken.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmedGH.isEmpty {
-                _ = KeychainService.save(.githubToken, value: trimmedGH)
                 githubToken = trimmedGH
                 githubClient = GitHubAPIClient(token: trimmedGH)
             }
 
-            // Request notification permission
-            _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
+            saveCredentials()
 
-            // Fetch GitHub username
+            _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
             await resolveGitHubUser()
 
             if let saved = owners.first(where: { $0.id == savedOwnerId }) {
@@ -109,9 +109,9 @@ final class AppState {
     func saveGitHubToken(_ token: String) {
         let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        _ = KeychainService.save(.githubToken, value: trimmed)
         githubToken = trimmed
         githubClient = GitHubAPIClient(token: trimmed)
+        saveCredentials()
         Task {
             await resolveGitHubUser()
             await fetchPRInfo()
@@ -119,7 +119,7 @@ final class AppState {
     }
 
     func logout() {
-        KeychainService.deleteAll()
+        KeychainService.delete()
         apiKey = ""
         githubToken = ""
         githubUsername = ""
@@ -157,7 +157,6 @@ final class AppState {
             isLoading = false
             lastUpdated = Date()
 
-            // Enrich with deploy statuses and PR info in parallel
             await withTaskGroup(of: Void.self) { group in
                 group.addTask { @MainActor in
                     await self.fetchDeployStatuses(previews: previews, client: client)
@@ -193,7 +192,6 @@ final class AppState {
             }
 
             for await (id, status) in group {
-                // Detect newly live deploys
                 if let old = oldStatuses[id], old != .live, status == .live {
                     unseenCount += 1
                     sendNotification(for: previews.first { $0.id == id })
