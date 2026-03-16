@@ -138,19 +138,22 @@ struct PreviewRowView: View {
                     .padding(.top, 3)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(service.name)
-                        .fontWeight(.medium)
-                        .lineLimit(1)
+                    HStack(spacing: 4) {
+                        Text(service.baseName)
+                            .fontWeight(.medium)
+                            .lineLimit(1)
+                        if let pr = service.prNumber {
+                            Text("#\(pr)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
 
                     if let url = service.serviceDetails?.url {
                         Text(url)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
-                    } else {
-                        Text("No URL available")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
                     }
                 }
 
